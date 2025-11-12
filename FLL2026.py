@@ -10,6 +10,7 @@ async def handle_pc(websocket):
     pc_clients.add(websocket)
     try:
         async for message in websocket:
+            # إعادة البث لجميع عملاء Flutter
             for client in flutter_clients:
                 await client.send(message)
     finally:
@@ -34,7 +35,6 @@ async def main(websocket, path):
     else:
         await websocket.close()
 
-print("[INFO] Render server running...")
 start_server = websockets.serve(main, "0.0.0.0", 10000)
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()
