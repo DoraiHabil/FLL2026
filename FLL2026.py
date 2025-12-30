@@ -1,40 +1,38 @@
-import asyncio
-import json
-import websockets
+from flask import Flask, Response, request
+import queue
 
-pc_clients = set()
-flutter_clients = set()
+app = Flask(__name__)
+frame_queue = queue.Queue(maxsize=10)
 
-async def handle_pc(websocket):
-    print("[INFO] PC connected")
-    pc_clients.add(websocket)
+@app.route("/upload", methods=["POST"])
+def upload():
     try:
-        async for message in websocket:
-            # إعادة البث لجميع عملاء Flutter
-            for client in flutter_clients:
-                await client.send(message)
-    finally:
-        pc_clients.remove(websocket)
-        print("[INFO] PC disconnected")
+        frame_queue.put_nowait(request.data)
+    except:
+        pass
+    return "OK"
 
-async def handle_flutter(websocket):
-    print("[INFO] Flutter connected")
-    flutter_clients.add(websocket)
-    try:
-        async for _ in websocket:
-            pass
-    finally:
-        flutter_clients.remove(websocket)
-        print("[INFO] Flutter disconnected")
+def generate():
+    while True:
+        frame = frame_queue.get()
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n" +
+            frame +
+            b"\r\n"
+        )
 
-async def main(websocket, path):
-    if path == "/pc":
-        await handle_pc(websocket)
-    elif path == "/flutter":
-        await handle_flutter(websocket)
-    else:
-        await websocket.close()
+@app.route("/video")
+def video():
+    return Response(
+        generate(),
+        mimetype="multipart/x-mixed-replace; boundary=frame"
+    )
 
-start_server = websockets.serve(main, "0.0.0.0", 10000)
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
+@app.route("/")
+def index():
+    return "MJPEG Render Server Running"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
+
